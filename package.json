@@ -1,0 +1,21 @@
+{
+  "name": "com.levan.assetautocheck",
+  "version": "1.0.0",
+  "displayName": "Asset Auto Check",
+  "description": "Unity编辑器工具，用于自动检查贴图资源的尺寸和文件大小，并提供可视化警告。",
+  "unity": "2021.3",
+  "keywords": [
+    "asset",
+    "texture",
+    "check",
+    "editor",
+    "tool"
+  ],
+  "author": {
+    "name": "Levan",
+    "email": "1391776552@qq.com",
+    "url": "https://github.com/levan173"
+  },
+  "dependencies": {
+  }
+} 
