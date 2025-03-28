@@ -12,6 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba443456fe4d709498846fc2e4042028, type: 3}
   m_Name: TextureCheckSettings
   m_EditorClassIdentifier: 
+  enableCheck: 1
   maxTextureWidth: 2048
-  maxTextureHeight: 2048
   maxFileSize: 20
