@@ -18,7 +18,7 @@ Unity编辑器工具，用于自动检查贴图资源的尺寸和文件大小，
 1. 打开 Package Manager (Window > Package Manager)
 2. 点击 "+" 按钮
 3. 选择 "Add package from git URL..."
-4. 输入: `https://your-repository-url.git`
+4. 输入: `https://github.com/levan173/AssetAutoCheck.git`
 
 ### 手动安装
 
@@ -37,4 +37,4 @@ Unity编辑器工具，用于自动检查贴图资源的尺寸和文件大小，
 
 ## 许可
 
-[你的许可证类型] 
+[MIT License] 
