@@ -22,7 +22,8 @@ namespace AssetAutoCheck
                 int maxSourceSize = Mathf.Max(width, height);
 
                 // 获取当前平台的最大尺寸设置
-                int maxSize = textureImporter.GetPlatformTextureSettings(EditorUserBuildSettings.activeBuildTarget.ToString()).maxTextureSize;
+                var platformSettings = textureImporter.GetPlatformTextureSettings(EditorUserBuildSettings.activeBuildTarget.ToString());
+                int maxSize = platformSettings.maxTextureSize;
                 
                 // 计算实际最大尺寸（源尺寸和设置尺寸的最小值）
                 int actualMaxSize = Mathf.Min(maxSourceSize, maxSize);
@@ -32,14 +33,28 @@ namespace AssetAutoCheck
                     bool hasIssue = false;
                     string message = $"贴图名称: {Path.GetFileName(assetPath)}\n";
 
+                    // 获取当前平台的最大尺寸限制
+                    int platformMaxSize = settings.maxTextureSize.GetCurrentPlatformSize();
+
                     // 检查最大尺寸
-                    if (actualMaxSize > settings.maxTextureWidth)
+                    if (actualMaxSize > platformMaxSize)
                     {
                         hasIssue = true;
                         message += $"贴图实际最大尺寸过大: {actualMaxSize}\n" +
                                  $"源尺寸: {width}x{height}, 最大压缩尺寸设置: {maxSize}\n" +
-                                 $"当前目标平台: {EditorUserBuildSettings.activeBuildTarget}\n" +
-                                 $"提示：{settings.customMessage}\n";;
+                                 $"当前目标平台: {EditorUserBuildSettings.activeBuildTarget}, 平台最大尺寸限制: {platformMaxSize}\n";
+                    }
+
+                    // 检查压缩格式
+                    TextureImporterFormat expectedFormat = settings.textureFormat.GetCurrentPlatformFormat();
+                    TextureImporterFormat currentFormat = platformSettings.format;
+                    
+                    if (currentFormat != expectedFormat)
+                    {
+                        hasIssue = true;
+                        message += $"贴图压缩格式不符合要求\n" +
+                                 $"当前格式: {currentFormat}\n" +
+                                 $"当前目标平台: {EditorUserBuildSettings.activeBuildTarget},建议格式: {expectedFormat}\n";
                     }
 
                     // 检查文件大小
@@ -57,6 +72,8 @@ namespace AssetAutoCheck
 
                     if (hasIssue)
                     {
+                        message += $"提示：{settings.customMessage}\n";
+                        
                         // 将问题贴图添加到当前批次
                         lock (currentBatchIssues)
                         {
