@@ -37,7 +37,7 @@ namespace AssetAutoCheck
                     {
                         hasIssue = true;
                         message += $"贴图实际最大尺寸过大: {actualMaxSize}\n" +
-                                 $"源尺寸: {width}x{height}, 最大尺寸设置: {maxSize}\n" +
+                                 $"源尺寸: {width}x{height}, 最大压缩尺寸设置: {maxSize}\n" +
                                  $"当前目标平台: {EditorUserBuildSettings.activeBuildTarget}\n" +
                                  $"提示：{settings.customMessage}\n";;
                     }
