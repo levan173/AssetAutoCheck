@@ -16,6 +16,10 @@ namespace AssetAutoCheck
         [Tooltip("贴图最大文件大小（MB）")]
         public float maxFileSize = 20f;
 
+        [Tooltip("自定义提示信息")]
+        [TextArea(3, 10)]
+        public string customMessage = "请注意遵循项目的贴图规范。";
+
         public static TextureCheckSettings GetOrCreateSettings()
         {
             var settings = GetSettings();
@@ -90,6 +94,7 @@ namespace AssetAutoCheck
                     EditorGUILayout.PropertyField(serializedSettings.FindProperty("enableCheck"), new GUIContent("启用贴图检查"));
                     EditorGUILayout.PropertyField(serializedSettings.FindProperty("maxTextureWidth"), new GUIContent("最大尺寸"));
                     EditorGUILayout.PropertyField(serializedSettings.FindProperty("maxFileSize"), new GUIContent("最大文件大小(MB)"));
+                    EditorGUILayout.PropertyField(serializedSettings.FindProperty("customMessage"), new GUIContent("自定义提示信息"));
                     serializedSettings.ApplyModifiedProperties();
                 },
                 keywords = new System.Collections.Generic.HashSet<string>(new[] { "Texture", "Check", "Size", "Width", "Height" })
