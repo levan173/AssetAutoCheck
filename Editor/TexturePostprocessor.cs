@@ -79,7 +79,7 @@ namespace AssetAutoCheck
                         {
                             currentBatchIssues[assetPath] = message;
                         }
-                        TextureHighlighter.MarkTexture(assetPath);
+                        TextureHighlighter.MarkTexture(assetPath, message);
                     }
                     else
                     {

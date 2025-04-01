@@ -8,7 +8,9 @@ namespace AssetAutoCheck
     public class TextureHighlighter
     {
         private static readonly string ProblemTexturesKey = "AssetAutoCheck_ProblemTextures";
+        private static readonly string ProblemMessagesKey = "AssetAutoCheck_ProblemMessages";
         private static HashSet<string> problemTextures = new HashSet<string>();
+        private static Dictionary<string, string> problemMessages = new Dictionary<string, string>();
 
         static TextureHighlighter()
         {
@@ -16,9 +18,10 @@ namespace AssetAutoCheck
             EditorApplication.projectWindowItemOnGUI += OnProjectWindowItemGUI;
         }
 
-        public static void MarkTexture(string path)
+        public static void MarkTexture(string path, string message)
         {
             problemTextures.Add(path);
+            problemMessages[path] = message;
             SaveProblemTextures();
         }
 
@@ -26,6 +29,7 @@ namespace AssetAutoCheck
         {
             if (problemTextures.Remove(path))
             {
+                problemMessages.Remove(path);
                 SaveProblemTextures();
             }
         }
@@ -35,28 +39,65 @@ namespace AssetAutoCheck
             if (problemTextures.Remove(oldPath))
             {
                 problemTextures.Add(newPath);
+                if (problemMessages.TryGetValue(oldPath, out string message))
+                {
+                    problemMessages.Remove(oldPath);
+                    problemMessages[newPath] = message;
+                }
                 SaveProblemTextures();
             }
+        }
+
+        public static bool IsProblemTexture(string path)
+        {
+            return problemTextures.Contains(path);
+        }
+
+        public static string GetProblemMessage(string path)
+        {
+            return problemMessages.TryGetValue(path, out string message) ? message : string.Empty;
         }
 
         private static void LoadProblemTextures()
         {
             problemTextures.Clear();
-            string data = EditorPrefs.GetString(ProblemTexturesKey, "");
-            if (!string.IsNullOrEmpty(data))
+            problemMessages.Clear();
+
+            string pathsData = EditorPrefs.GetString(ProblemTexturesKey, "");
+            string messagesData = EditorPrefs.GetString(ProblemMessagesKey, "");
+
+            if (!string.IsNullOrEmpty(pathsData))
             {
-                string[] paths = data.Split(new char[] { '|' }, System.StringSplitOptions.RemoveEmptyEntries);
-                foreach (var path in paths)
+                string[] paths = pathsData.Split(new char[] { '|' }, System.StringSplitOptions.RemoveEmptyEntries);
+                string[] messages = messagesData.Split(new char[] { '|' }, System.StringSplitOptions.RemoveEmptyEntries);
+
+                for (int i = 0; i < paths.Length && i < messages.Length; i++)
                 {
-                    problemTextures.Add(path);
+                    problemTextures.Add(paths[i]);
+                    problemMessages[paths[i]] = messages[i].Replace("\\n", "\n");
                 }
             }
         }
 
         private static void SaveProblemTextures()
         {
-            string data = string.Join("|", problemTextures);
-            EditorPrefs.SetString(ProblemTexturesKey, data);
+            string pathsData = string.Join("|", problemTextures);
+            List<string> messages = new List<string>();
+            foreach (var path in problemTextures)
+            {
+                if (problemMessages.TryGetValue(path, out string message))
+                {
+                    messages.Add(message.Replace("\n", "\\n"));
+                }
+                else
+                {
+                    messages.Add("");
+                }
+            }
+            string messagesData = string.Join("|", messages);
+
+            EditorPrefs.SetString(ProblemTexturesKey, pathsData);
+            EditorPrefs.SetString(ProblemMessagesKey, messagesData);
         }
 
         private static void OnProjectWindowItemGUI(string guid, Rect selectionRect)
@@ -94,6 +135,7 @@ namespace AssetAutoCheck
                 string path = AssetDatabase.GetAssetPath(obj);
                 if (problemTextures.Remove(path))
                 {
+                    problemMessages.Remove(path);
                     changed = true;
                 }
             }

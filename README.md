@@ -35,6 +35,11 @@ Unity编辑器工具，用于自动检查贴图资源的尺寸和文件大小，
 4. 不符合要求的贴图会在Project窗口中被高亮显示
 5. 点击警告窗口中的贴图信息可快速定位到对应贴图
 
+##注意
+目前可能存在一个如下的编辑器报错
+'AssetAutoCheck.TextureInspectorExtension' is missing the class attribute 'ExtensionOfNativeClass'!
+这并不影响正常使用，直接无视即可
+
 ## 许可
 
 [MIT License] 
