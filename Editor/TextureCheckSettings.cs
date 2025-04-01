@@ -2,46 +2,58 @@ using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace AssetAutoCheck
 {
     [System.Serializable]
     public struct PlatformTextureFormat
     {
-        public TextureImporterFormat androidFormat;
-        public TextureImporterFormat iosFormat;
-        public TextureImporterFormat windowsFormat;
-        public TextureImporterFormat webGLFormat;
-        public TextureImporterFormat hmiAndroidFormat;
+        [SerializeField]
+        private List<TextureImporterFormat> androidFormats;
+        [SerializeField]
+        private List<TextureImporterFormat> iosFormats;
+        [SerializeField]
+        private List<TextureImporterFormat> windowsFormats;
+        [SerializeField]
+        private List<TextureImporterFormat> webGLFormats;
+        [SerializeField]
+        private List<TextureImporterFormat> hmiAndroidFormats;
+
+        public List<TextureImporterFormat> AndroidFormats => androidFormats;
+        public List<TextureImporterFormat> IOSFormats => iosFormats;
+        public List<TextureImporterFormat> WindowsFormats => windowsFormats;
+        public List<TextureImporterFormat> WebGLFormats => webGLFormats;
+        public List<TextureImporterFormat> HMIAndroidFormats => hmiAndroidFormats;
 
         public static PlatformTextureFormat CreateDefault()
         {
             return new PlatformTextureFormat
             {
-                androidFormat = TextureImporterFormat.ASTC_6x6,
-                iosFormat = TextureImporterFormat.ASTC_6x6,
-                windowsFormat = TextureImporterFormat.DXT5,
-                webGLFormat = TextureImporterFormat.DXT5,
-                hmiAndroidFormat = TextureImporterFormat.ETC2_RGBA8
+                androidFormats = new List<TextureImporterFormat> { TextureImporterFormat.ASTC_6x6 },
+                iosFormats = new List<TextureImporterFormat> { TextureImporterFormat.ASTC_6x6 },
+                windowsFormats = new List<TextureImporterFormat> { TextureImporterFormat.DXT5 },
+                webGLFormats = new List<TextureImporterFormat> { TextureImporterFormat.DXT5 },
+                hmiAndroidFormats = new List<TextureImporterFormat> { TextureImporterFormat.ETC2_RGBA8 }
             };
         }
 
-        public TextureImporterFormat GetCurrentPlatformFormat()
+        public List<TextureImporterFormat> GetCurrentPlatformFormats()
         {
             #if UNITY_ANDROID
                 // 检查是否是HMI Android平台
                 if (UnityEditor.EditorUserBuildSettings.selectedBuildTargetGroup == UnityEditor.BuildTargetGroup.Android &&
                     UnityEditor.EditorPrefs.GetString("BuildTarget", "") == "HMI")
                 {
-                    return hmiAndroidFormat;
+                    return hmiAndroidFormats;
                 }
-                return androidFormat;
+                return androidFormats;
             #elif UNITY_IOS
-                return iosFormat;
+                return iosFormats;
             #elif UNITY_WEBGL
-                return webGLFormat;
+                return webGLFormats;
             #else
-                return windowsFormat;
+                return windowsFormats;
             #endif
         }
     }
@@ -142,6 +154,61 @@ namespace AssetAutoCheck
     static class TextureCheckSettingsIMGUIRegister
     {
         private static Vector2 directoryScrollPosition;
+        private static Dictionary<string, bool[]> formatFoldouts = new Dictionary<string, bool[]>();
+        private static TextureImporterFormat[] allFormats;
+
+        static TextureCheckSettingsIMGUIRegister()
+        {
+            // 获取所有可用的压缩格式
+            allFormats = System.Enum.GetValues(typeof(TextureImporterFormat))
+                .Cast<TextureImporterFormat>()
+                .ToArray();
+        }
+
+        private static void DrawFormatList(string label, List<TextureImporterFormat> formats, SerializedProperty formatsProp)
+        {
+            if (!formatFoldouts.ContainsKey(label))
+            {
+                formatFoldouts[label] = new bool[allFormats.Length];
+            }
+
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+            
+            // 创建一个临时列表来跟踪选中状态
+            var selectedFormats = new HashSet<TextureImporterFormat>(formats);
+            
+            // 显示当前选中的格式
+            string currentFormats = string.Join(", ", formats.Select(f => f.ToString()));
+            EditorGUILayout.LabelField($"{label}:", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("当前选中: " + (string.IsNullOrEmpty(currentFormats) ? "无" : currentFormats), EditorStyles.miniLabel);
+
+            // 创建下拉菜单
+            if (GUILayout.Button("选择压缩格式...", EditorStyles.popup))
+            {
+                var menu = new GenericMenu();
+                
+                for (int i = 0; i < allFormats.Length; i++)
+                {
+                    var format = allFormats[i];
+                    bool isSelected = selectedFormats.Contains(format);
+                    menu.AddItem(new GUIContent(format.ToString()), isSelected, () => {
+                        if (isSelected)
+                        {
+                            formats.Remove(format);
+                        }
+                        else
+                        {
+                            formats.Add(format);
+                        }
+                        EditorUtility.SetDirty(TextureCheckSettings.GetOrCreateSettings());
+                    });
+                }
+                
+                menu.ShowAsContext();
+            }
+
+            EditorGUILayout.EndVertical();
+        }
 
         [SettingsProvider]
         public static SettingsProvider CreateSettingsProvider()
@@ -198,12 +265,11 @@ namespace AssetAutoCheck
                     EditorGUILayout.Space(10);
                     EditorGUILayout.LabelField("平台特定的贴图压缩格式", EditorStyles.boldLabel);
                     
-                    SerializedProperty formatProp = serializedSettings.FindProperty("textureFormat");
-                    EditorGUILayout.PropertyField(formatProp.FindPropertyRelative("androidFormat"), new GUIContent("Android压缩格式"));
-                    EditorGUILayout.PropertyField(formatProp.FindPropertyRelative("hmiAndroidFormat"), new GUIContent("HMI Android压缩格式"));
-                    EditorGUILayout.PropertyField(formatProp.FindPropertyRelative("iosFormat"), new GUIContent("iOS压缩格式"));
-                    EditorGUILayout.PropertyField(formatProp.FindPropertyRelative("windowsFormat"), new GUIContent("Windows压缩格式"));
-                    EditorGUILayout.PropertyField(formatProp.FindPropertyRelative("webGLFormat"), new GUIContent("WebGL压缩格式"));
+                    DrawFormatList("Android压缩格式", settings.textureFormat.AndroidFormats, null);
+                    DrawFormatList("HMI Android压缩格式", settings.textureFormat.HMIAndroidFormats, null);
+                    DrawFormatList("iOS压缩格式", settings.textureFormat.IOSFormats, null);
+                    DrawFormatList("Windows压缩格式", settings.textureFormat.WindowsFormats, null);
+                    DrawFormatList("WebGL压缩格式", settings.textureFormat.WebGLFormats, null);
                     
                     EditorGUILayout.Space(10);
                     EditorGUILayout.PropertyField(serializedSettings.FindProperty("maxFileSize"), new GUIContent("最大文件大小(MB)"));

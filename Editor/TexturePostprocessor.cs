@@ -74,15 +74,15 @@ namespace AssetAutoCheck
             }
 
             // 检查压缩格式
-            TextureImporterFormat expectedFormat = settings.textureFormat.GetCurrentPlatformFormat();
+            var expectedFormats = settings.textureFormat.GetCurrentPlatformFormats();
             TextureImporterFormat currentFormat = platformSettings.format;
             
-            if (currentFormat != expectedFormat)
+            if (!expectedFormats.Contains(currentFormat))
             {
                 hasIssue = true;
                 message += $"贴图压缩格式不符合要求\n" +
                             $"当前格式: {currentFormat}\n" +
-                            $"当前目标平台: {EditorUserBuildSettings.activeBuildTarget},建议格式: {expectedFormat}\n";
+                            $"当前目标平台: {EditorUserBuildSettings.activeBuildTarget}, 建议格式: {string.Join(" 或 ", expectedFormats)}\n";
             }
 
             // 检查文件大小
