@@ -14,80 +14,96 @@ namespace AssetAutoCheck
         {
             if (assetImporter is TextureImporter textureImporter)
             {
-                var settings = TextureCheckSettings.GetOrCreateSettings();
+                var (hasIssue, message) = CheckTextureImporter(textureImporter, assetPath);
                 
-                // 获取源尺寸
-                int width = 0, height = 0;
-                textureImporter.GetSourceTextureWidthAndHeight(out width, out height);
-                int maxSourceSize = Mathf.Max(width, height);
-
-                // 获取当前平台的最大尺寸设置
-                var platformSettings = textureImporter.GetPlatformTextureSettings(EditorUserBuildSettings.activeBuildTarget.ToString());
-                int maxSize = platformSettings.maxTextureSize;
-                
-                // 计算实际最大尺寸（源尺寸和设置尺寸的最小值）
-                int actualMaxSize = Mathf.Min(maxSourceSize, maxSize);
-                
-                if (actualMaxSize > 0)
+                if (hasIssue)
                 {
-                    bool hasIssue = false;
-                    string message = $"贴图名称: {Path.GetFileName(assetPath)}\n";
-
-                    // 获取当前平台的最大尺寸限制
-                    int platformMaxSize = settings.maxTextureSize.GetCurrentPlatformSize();
-
-                    // 检查最大尺寸
-                    if (actualMaxSize > platformMaxSize)
+                    // 将问题贴图添加到当前批次
+                    lock (currentBatchIssues)
                     {
-                        hasIssue = true;
-                        message += $"贴图实际最大尺寸过大: {actualMaxSize}\n" +
-                                 $"源尺寸: {width}x{height}, 最大压缩尺寸设置: {maxSize}\n" +
-                                 $"当前目标平台: {EditorUserBuildSettings.activeBuildTarget}, 平台最大尺寸限制: {platformMaxSize}\n";
+                        currentBatchIssues[assetPath] = message;
                     }
-
-                    // 检查压缩格式
-                    TextureImporterFormat expectedFormat = settings.textureFormat.GetCurrentPlatformFormat();
-                    TextureImporterFormat currentFormat = platformSettings.format;
-                    
-                    if (currentFormat != expectedFormat)
-                    {
-                        hasIssue = true;
-                        message += $"贴图压缩格式不符合要求\n" +
-                                 $"当前格式: {currentFormat}\n" +
-                                 $"当前目标平台: {EditorUserBuildSettings.activeBuildTarget},建议格式: {expectedFormat}\n";
-                    }
-
-                    // 检查文件大小
-                    string fullPath = Path.GetFullPath(assetPath);
-                    if (File.Exists(fullPath))
-                    {
-                        float fileSizeMB = new FileInfo(fullPath).Length / (1024f * 1024f);
-                        if (fileSizeMB > settings.maxFileSize)
-                        {
-                            hasIssue = true;
-                            message += $"文件大小过大: {fileSizeMB:F2}MB\n" +
-                                     $"如果没有特殊需求，建议大小不要超过: {settings.maxFileSize}MB\n";
-                        }
-                    }
-
-                    if (hasIssue)
-                    {
-                        message += $"提示：{settings.customMessage}\n";
-                        
-                        // 将问题贴图添加到当前批次
-                        lock (currentBatchIssues)
-                        {
-                            currentBatchIssues[assetPath] = message;
-                        }
-                        TextureHighlighter.MarkTexture(assetPath, message);
-                    }
-                    else
-                    {
-                        // 如果贴图现在满足要求，移除高亮标记
-                        TextureHighlighter.RemoveTexture(assetPath);
-                    }
+                    TextureHighlighter.MarkTexture(assetPath, message);
+                }
+                else
+                {
+                    // 如果贴图现在满足要求，移除高亮标记
+                    TextureHighlighter.RemoveTexture(assetPath);
                 }
             }
+        }
+
+        /// <summary>
+        /// 检查贴图导入器的设置是否符合要求
+        /// </summary>
+        /// <param name="textureImporter">贴图导入器</param>
+        /// <param name="assetPath">资源路径</param>
+        /// <returns>返回一个元组，包含是否有问题和问题描述信息</returns>
+        public static (bool hasIssue, string message) CheckTextureImporter(TextureImporter textureImporter, string assetPath)
+        {
+            var settings = TextureCheckSettings.GetOrCreateSettings();
+            if (!settings.enableCheck) return (false, string.Empty);
+
+            // 获取源尺寸
+            int width = 0, height = 0;
+            textureImporter.GetSourceTextureWidthAndHeight(out width, out height);
+            int maxSourceSize = Mathf.Max(width, height);
+
+            // 获取当前平台的最大尺寸设置
+            var platformSettings = textureImporter.GetPlatformTextureSettings(EditorUserBuildSettings.activeBuildTarget.ToString());
+            int maxSize = platformSettings.maxTextureSize;
+            
+            // 计算实际最大尺寸（源尺寸和设置尺寸的最小值）
+            int actualMaxSize = Mathf.Min(maxSourceSize, maxSize);
+            
+            if (actualMaxSize <= 0) return (false, string.Empty);
+
+            bool hasIssue = false;
+            string message = $"贴图名称: {Path.GetFileName(assetPath)}\n";
+
+            // 获取当前平台的最大尺寸限制
+            int platformMaxSize = settings.maxTextureSize.GetCurrentPlatformSize();
+
+            // 检查最大尺寸
+            if (actualMaxSize > platformMaxSize)
+            {
+                hasIssue = true;
+                message += $"贴图实际最大尺寸过大: {actualMaxSize}\n" +
+                            $"源尺寸: {width}x{height}, 最大压缩尺寸设置: {maxSize}\n" +
+                            $"当前目标平台: {EditorUserBuildSettings.activeBuildTarget}, 平台最大尺寸限制: {platformMaxSize}\n";
+            }
+
+            // 检查压缩格式
+            TextureImporterFormat expectedFormat = settings.textureFormat.GetCurrentPlatformFormat();
+            TextureImporterFormat currentFormat = platformSettings.format;
+            
+            if (currentFormat != expectedFormat)
+            {
+                hasIssue = true;
+                message += $"贴图压缩格式不符合要求\n" +
+                            $"当前格式: {currentFormat}\n" +
+                            $"当前目标平台: {EditorUserBuildSettings.activeBuildTarget},建议格式: {expectedFormat}\n";
+            }
+
+            // 检查文件大小
+            string fullPath = Path.GetFullPath(assetPath);
+            if (File.Exists(fullPath))
+            {
+                float fileSizeMB = new FileInfo(fullPath).Length / (1024f * 1024f);
+                if (fileSizeMB > settings.maxFileSize)
+                {
+                    hasIssue = true;
+                    message += $"文件大小过大: {fileSizeMB:F2}MB\n" +
+                                $"如果没有特殊需求，建议大小不要超过: {settings.maxFileSize}MB\n";
+                }
+            }
+
+            if (hasIssue)
+            {
+                message += $"提示：{settings.customMessage}\n";
+            }
+
+            return (hasIssue, message);
         }
 
         // 在所有资源处理完成后调用

@@ -1,5 +1,7 @@
 using UnityEngine;
 using UnityEditor;
+using System.Collections.Generic;
+using System.IO;
 
 namespace AssetAutoCheck
 {
@@ -203,10 +205,58 @@ namespace AssetAutoCheck
                     EditorGUILayout.Space(10);
                     EditorGUILayout.PropertyField(serializedSettings.FindProperty("customMessage"), new GUIContent("自定义提示信息"));
                     serializedSettings.ApplyModifiedProperties();
+
+                    EditorGUILayout.Space(20);
+                    if (GUILayout.Button("检查所有贴图"))
+                    {
+                        CheckAllTextures();
+                    }
                 },
                 keywords = new System.Collections.Generic.HashSet<string>(new[] { "Texture", "Check", "Size", "Width", "Height", "Platform", "HMI", "Format", "Compression" })
             };
             return provider;
+        }
+
+        private static void CheckAllTextures()
+        {
+            var settings = TextureCheckSettings.GetOrCreateSettings();
+            if (!settings.enableCheck)
+            {
+                EditorUtility.DisplayDialog("提示", "请先启用贴图检查功能！", "确定");
+                return;
+            }
+
+            Dictionary<string, string> issues = new Dictionary<string, string>();
+            string[] guids = AssetDatabase.FindAssets("t:Texture2D");
+
+            foreach (string guid in guids)
+            {
+                string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                TextureImporter textureImporter = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+                
+                if (textureImporter != null)
+                {
+                    var (hasIssue, message) = TexturePostprocessor.CheckTextureImporter(textureImporter, assetPath);
+                    if (hasIssue)
+                    {
+                        issues[assetPath] = message;
+                        TextureHighlighter.MarkTexture(assetPath, message);
+                    }
+                    else
+                    {
+                        TextureHighlighter.RemoveTexture(assetPath);
+                    }
+                }
+            }
+
+            if (issues.Count > 0)
+            {
+                TextureCheckWindow.ShowWindow("问题贴图检查", issues);
+            }
+            else
+            {
+                EditorUtility.DisplayDialog("检查完成", "所有贴图都符合要求！", "确定");
+            }
         }
     }
 } 
