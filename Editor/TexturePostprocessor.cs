@@ -5,6 +5,24 @@ using System.Collections.Generic;
 
 namespace AssetAutoCheck
 {
+    public static class TextureImporterExtensions
+    {
+        public static TextureImporterFormat GetDefaultPlatformTextureFormat(this TextureImporter importer)
+        {
+            switch (importer.textureCompression)
+            {
+                case TextureImporterCompression.Compressed:
+                    return TextureImporterFormat.Automatic;
+                case TextureImporterCompression.CompressedHQ:
+                    return TextureImporterFormat.Automatic;
+                case TextureImporterCompression.CompressedLQ:
+                    return TextureImporterFormat.Automatic;
+                default:
+                    return TextureImporterFormat.RGBA32;
+            }
+        }
+    }
+
     public class TexturePostprocessor : AssetPostprocessor
     {
         // 用于收集当前导入批次中的问题贴图
@@ -49,8 +67,29 @@ namespace AssetAutoCheck
             textureImporter.GetSourceTextureWidthAndHeight(out width, out height);
             int maxSourceSize = Mathf.Max(width, height);
 
-            // 获取当前平台的最大尺寸设置
-            var platformSettings = textureImporter.GetPlatformTextureSettings(EditorUserBuildSettings.activeBuildTarget.ToString());
+            string currentPlatform = EditorUserBuildSettings.activeBuildTarget.ToString();
+            
+            // 检查是否有平台特定的覆盖设置
+            bool hasOverride = textureImporter.GetPlatformTextureSettings(currentPlatform).overridden;
+            TextureImporterPlatformSettings platformSettings;
+            
+            if (hasOverride)
+            {
+                // 使用平台特定的设置
+                platformSettings = textureImporter.GetPlatformTextureSettings(currentPlatform);
+            }
+            else
+            {
+                // 使用默认设置
+                platformSettings = new TextureImporterPlatformSettings
+                {
+                    maxTextureSize = textureImporter.maxTextureSize,
+                    format = textureImporter.textureCompression == TextureImporterCompression.Uncompressed 
+                        ? TextureImporterFormat.RGBA32 
+                        : textureImporter.GetDefaultPlatformTextureFormat()
+                };
+            }
+
             int maxSize = platformSettings.maxTextureSize;
             
             // 计算实际最大尺寸（源尺寸和设置尺寸的最小值）
@@ -60,6 +99,8 @@ namespace AssetAutoCheck
 
             bool hasIssue = false;
             string message = $"贴图名称: {Path.GetFileName(assetPath)}\n";
+            message += $"项目当前目标平台: {currentPlatform}\n";
+            message += hasOverride ? $"[贴图使用平台特定设置 - {currentPlatform}]\n" : "[贴图使用默认设置]\n";
 
             // 获取当前平台的最大尺寸限制
             int platformMaxSize = settings.maxTextureSize.GetCurrentPlatformSize();
@@ -68,21 +109,29 @@ namespace AssetAutoCheck
             if (actualMaxSize > platformMaxSize)
             {
                 hasIssue = true;
-                message += $"贴图实际最大尺寸过大: {actualMaxSize}\n" +
-                            $"源尺寸: {width}x{height}, 最大压缩尺寸设置: {maxSize}\n" +
-                            $"当前目标平台: {EditorUserBuildSettings.activeBuildTarget}, 平台最大尺寸限制: {platformMaxSize}\n";
+                message +=  "\n" +
+                            $"贴图实际最大尺寸过大: {actualMaxSize}\n" +
+                            $"源尺寸: {width}x{height}, 贴图最大压缩尺寸设置: {maxSize}\n" +
+                            $"当前目标平台最大尺寸限制: {platformMaxSize}\n";
             }
 
             // 检查压缩格式
             var expectedFormats = settings.textureFormat.GetCurrentPlatformFormats();
             TextureImporterFormat currentFormat = platformSettings.format;
+            if(currentFormat == TextureImporterFormat.Automatic)
+            {
+                currentFormat = textureImporter.GetAutomaticFormat(currentPlatform);
+                message +=  "\n" +
+                            "贴图选择了自动格式，当前平台自动格式为：" + currentFormat + "\n";
+            }
             
             if (!expectedFormats.Contains(currentFormat))
             {
                 hasIssue = true;
-                message += $"贴图压缩格式不符合要求\n" +
-                            $"当前格式: {currentFormat}\n" +
-                            $"当前目标平台: {EditorUserBuildSettings.activeBuildTarget}, 建议格式: {string.Join(" 或 ", expectedFormats)}\n";
+                message +=  "\n" +
+                            $"贴图压缩格式不符合要求\n" +
+                            $"贴图当前格式: {currentFormat}\n" +
+                            $"当前目标平台建议格式: {string.Join(" 或 ", expectedFormats)}\n";
             }
 
             // 检查文件大小
@@ -93,14 +142,16 @@ namespace AssetAutoCheck
                 if (fileSizeMB > settings.maxFileSize)
                 {
                     hasIssue = true;
-                    message += $"文件大小过大: {fileSizeMB:F2}MB\n" +
+                    message +=  "\n" +
+                                $"文件大小过大: {fileSizeMB:F2}MB\n" +
                                 $"如果没有特殊需求，建议大小不要超过: {settings.maxFileSize}MB\n";
                 }
             }
 
             if (hasIssue)
             {
-                message += $"提示：{settings.customMessage}\n";
+                message +=  "\n" +
+                            $"提示：{settings.customMessage}\n";
             }
 
             return (hasIssue, message);
