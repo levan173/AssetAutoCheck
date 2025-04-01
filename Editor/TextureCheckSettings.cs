@@ -107,6 +107,9 @@ namespace AssetAutoCheck
         [TextArea(3, 10)]
         public string customMessage = "请注意遵循项目的贴图规范。";
 
+        [Tooltip("指定要检查的目录（为空则检查所有目录）")]
+        public List<string> checkDirectories = new List<string>();
+
         public static TextureCheckSettings GetOrCreateSettings()
         {
             var settings = GetSettings();
@@ -138,6 +141,8 @@ namespace AssetAutoCheck
 
     static class TextureCheckSettingsIMGUIRegister
     {
+        private static Vector2 directoryScrollPosition;
+
         [SettingsProvider]
         public static SettingsProvider CreateSettingsProvider()
         {
@@ -149,11 +154,12 @@ namespace AssetAutoCheck
                     EditorGUILayout.Space(10);
                     EditorGUILayout.LabelField("设置文件", EditorStyles.boldLabel);
                     
+                    var settings = TextureCheckSettings.GetOrCreateSettings();
+                    var serializedSettings = TextureCheckSettings.GetSerializedSettings();
+
                     using (new EditorGUILayout.HorizontalScope())
                     {
-                        var settings = TextureCheckSettings.GetOrCreateSettings();
-                        var path = EditorPrefs.GetString("TextureCheckSettingsPath", "");
-                        var currentSettings = AssetDatabase.LoadAssetAtPath<TextureCheckSettings>(path);
+                        var currentSettings = AssetDatabase.LoadAssetAtPath<TextureCheckSettings>(EditorPrefs.GetString("TextureCheckSettingsPath", ""));
                         var newSettings = EditorGUILayout.ObjectField("当前设置文件", currentSettings, typeof(TextureCheckSettings), false) as TextureCheckSettings;
                         
                         if (newSettings != currentSettings && newSettings != null)
@@ -177,7 +183,6 @@ namespace AssetAutoCheck
                     }
 
                     EditorGUILayout.Space(20);
-                    var serializedSettings = TextureCheckSettings.GetSerializedSettings();
                     EditorGUILayout.PropertyField(serializedSettings.FindProperty("enableCheck"), new GUIContent("启用贴图检查"));
                     
                     EditorGUILayout.Space(10);
@@ -204,13 +209,65 @@ namespace AssetAutoCheck
                     EditorGUILayout.PropertyField(serializedSettings.FindProperty("maxFileSize"), new GUIContent("最大文件大小(MB)"));
                     EditorGUILayout.Space(10);
                     EditorGUILayout.PropertyField(serializedSettings.FindProperty("customMessage"), new GUIContent("自定义提示信息"));
-                    serializedSettings.ApplyModifiedProperties();
 
                     EditorGUILayout.Space(20);
+                    EditorGUILayout.LabelField("检查目录设置", EditorStyles.boldLabel);
+                    
+                    SerializedProperty directoriesProp = serializedSettings.FindProperty("checkDirectories");
+
+                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                    EditorGUILayout.LabelField("指定要检查的目录（为空则检查所有目录）：");
+                    
+                    // 添加新目录的按钮
+                    EditorGUILayout.BeginHorizontal();
+                    if (GUILayout.Button("添加目录", GUILayout.Width(100)))
+                    {
+                        string selectedPath = EditorUtility.OpenFolderPanel("选择要检查的目录", "Assets", "");
+                        if (!string.IsNullOrEmpty(selectedPath))
+                        {
+                            // 转换为相对于Assets的路径
+                            string relativePath = "Assets" + selectedPath.Substring(Application.dataPath.Length);
+                            if (!settings.checkDirectories.Contains(relativePath))
+                            {
+                                settings.checkDirectories.Add(relativePath);
+                                EditorUtility.SetDirty(settings);
+                            }
+                        }
+                    }
+                    
+                    if (GUILayout.Button("清空列表", GUILayout.Width(100)))
+                    {
+                        if (EditorUtility.DisplayDialog("确认", "是否确定清空所有检查目录？", "确定", "取消"))
+                        {
+                            settings.checkDirectories.Clear();
+                            EditorUtility.SetDirty(settings);
+                        }
+                    }
+                    EditorGUILayout.EndHorizontal();
+
+                    // 显示目录列表
+                    directoryScrollPosition = EditorGUILayout.BeginScrollView(directoryScrollPosition, GUILayout.Height(100));
+                    for (int i = settings.checkDirectories.Count - 1; i >= 0; i--)
+                    {
+                        EditorGUILayout.BeginHorizontal();
+                        EditorGUILayout.LabelField(settings.checkDirectories[i]);
+                        if (GUILayout.Button("移除", GUILayout.Width(60)))
+                        {
+                            settings.checkDirectories.RemoveAt(i);
+                            EditorUtility.SetDirty(settings);
+                        }
+                        EditorGUILayout.EndHorizontal();
+                    }
+                    EditorGUILayout.EndScrollView();
+                    EditorGUILayout.EndVertical();
+
+                    EditorGUILayout.Space(10);
                     if (GUILayout.Button("检查所有贴图"))
                     {
                         CheckAllTextures();
                     }
+
+                    serializedSettings.ApplyModifiedProperties();
                 },
                 keywords = new System.Collections.Generic.HashSet<string>(new[] { "Texture", "Check", "Size", "Width", "Height", "Platform", "HMI", "Format", "Compression" })
             };
@@ -227,24 +284,43 @@ namespace AssetAutoCheck
             }
 
             Dictionary<string, string> issues = new Dictionary<string, string>();
-            string[] guids = AssetDatabase.FindAssets("t:Texture2D");
-
-            foreach (string guid in guids)
+            
+            // 根据设置的目录范围构建搜索路径
+            List<string> searchPaths = new List<string>();
+            if (settings.checkDirectories != null && settings.checkDirectories.Count > 0)
             {
-                string assetPath = AssetDatabase.GUIDToAssetPath(guid);
-                TextureImporter textureImporter = AssetImporter.GetAtPath(assetPath) as TextureImporter;
-                
-                if (textureImporter != null)
+                searchPaths.AddRange(settings.checkDirectories);
+            }
+            else
+            {
+                searchPaths.Add("Assets"); // 如果没有指定目录，则检查所有Assets下的贴图
+            }
+
+            // 在每个指定的目录中搜索贴图
+            HashSet<string> processedGuids = new HashSet<string>(); // 用于去重
+            foreach (string searchPath in searchPaths)
+            {
+                string[] guids = AssetDatabase.FindAssets("t:Texture2D", new[] { searchPath });
+                foreach (string guid in guids)
                 {
-                    var (hasIssue, message) = TexturePostprocessor.CheckTextureImporter(textureImporter, assetPath);
-                    if (hasIssue)
+                    if (processedGuids.Add(guid)) // 如果是新的GUID才处理
                     {
-                        issues[assetPath] = message;
-                        TextureHighlighter.MarkTexture(assetPath, message);
-                    }
-                    else
-                    {
-                        TextureHighlighter.RemoveTexture(assetPath);
+                        string assetPath = AssetDatabase.GUIDToAssetPath(guid);
+                        TextureImporter textureImporter = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+                        
+                        if (textureImporter != null)
+                        {
+                            var (hasIssue, message) = TexturePostprocessor.CheckTextureImporter(textureImporter, assetPath);
+                            if (hasIssue)
+                            {
+                                issues[assetPath] = message;
+                                TextureHighlighter.MarkTexture(assetPath, message);
+                            }
+                            else
+                            {
+                                TextureHighlighter.RemoveTexture(assetPath);
+                            }
+                        }
                     }
                 }
             }
