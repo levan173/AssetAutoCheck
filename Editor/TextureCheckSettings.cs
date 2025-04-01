@@ -89,7 +89,7 @@ namespace AssetAutoCheck
 
     public class TextureCheckSettings : ScriptableObject
     {
-        private const string DEFAULT_SETTINGS_PATH = "Packages/com.levan.assetautocheck/TextureCheckSettings.asset";
+        private const string DEFAULT_SETTINGS_PATH = "Assets/TextureCheckSettings.asset";
 
         [Tooltip("是否启用贴图检查")]
         public bool enableCheck = true;
