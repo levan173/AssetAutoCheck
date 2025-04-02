@@ -98,6 +98,7 @@ namespace TAKit.AssetAutoCheck
     public class TextureCheckSettings : ScriptableObject
     {
         private const string DEFAULT_SETTINGS_PATH = "Assets/TextureCheckSettings.asset";
+        public const string SETTINGS_PATH_PREF_KEY = "TextureCheckSettingsPath";
         
         private static TextureCheckSettings instance;
         public static TextureCheckSettings Instance
@@ -106,7 +107,8 @@ namespace TAKit.AssetAutoCheck
             {
                 if (instance == null)
                 {
-                    instance = AssetDatabase.LoadAssetAtPath<TextureCheckSettings>(DEFAULT_SETTINGS_PATH);
+                    string path = EditorPrefs.GetString(SETTINGS_PATH_PREF_KEY, DEFAULT_SETTINGS_PATH);
+                    instance = AssetDatabase.LoadAssetAtPath<TextureCheckSettings>(path);
                     if (instance == null)
                     {
                         instance = CreateInstance<TextureCheckSettings>();
@@ -136,12 +138,21 @@ namespace TAKit.AssetAutoCheck
                         
                         AssetDatabase.CreateAsset(instance, DEFAULT_SETTINGS_PATH);
                         AssetDatabase.SaveAssets();
+                        EditorPrefs.SetString(SETTINGS_PATH_PREF_KEY, DEFAULT_SETTINGS_PATH);
                     }
                 }
                 return instance;
             }
             set
             {
+                if (value != null)
+                {
+                    string path = AssetDatabase.GetAssetPath(value);
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        EditorPrefs.SetString(SETTINGS_PATH_PREF_KEY, path);
+                    }
+                }
                 instance = value;
             }
         }
