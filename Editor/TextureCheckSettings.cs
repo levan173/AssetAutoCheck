@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace AssetAutoCheck
+namespace TAKit.AssetAutoCheck
 {
     [System.Serializable]
     public struct PlatformTextureFormat
@@ -162,12 +162,28 @@ namespace AssetAutoCheck
                 settings = CreateInstance<TextureCheckSettings>();
                 // 添加默认的排除关键字
                 settings.excludeKeywords.Add("Editor");
-                settings.excludeKeywords.Add("Package");
+                settings.excludeKeywords.Add("Packages");
                 
-                if (!AssetDatabase.IsValidFolder("Assets/AssetAutoCheck"))
+                // 确保设置文件所在的目录存在
+                string settingsFolder = Path.GetDirectoryName(DEFAULT_SETTINGS_PATH);
+                if (!string.IsNullOrEmpty(settingsFolder) && !AssetDatabase.IsValidFolder(settingsFolder))
                 {
-                    AssetDatabase.CreateFolder("Assets", "AssetAutoCheck");
+                    // 从Assets开始，逐级创建目录
+                    string[] folderLevels = settingsFolder.Split('/');
+                    string currentPath = folderLevels[0]; // 应该是"Assets"
+                    
+                    // 从第二级目录开始创建
+                    for (int i = 1; i < folderLevels.Length; i++)
+                    {
+                        string newPath = Path.Combine(currentPath, folderLevels[i]);
+                        if (!AssetDatabase.IsValidFolder(newPath))
+                        {
+                            AssetDatabase.CreateFolder(currentPath, folderLevels[i]);
+                        }
+                        currentPath = newPath;
+                    }
                 }
+                
                 AssetDatabase.CreateAsset(settings, DEFAULT_SETTINGS_PATH);
                 AssetDatabase.SaveAssets();
                 EditorPrefs.SetString("TextureCheckSettingsPath", DEFAULT_SETTINGS_PATH);
@@ -284,7 +300,7 @@ namespace AssetAutoCheck
                                 newPath = "Assets" + newPath.Substring(Application.dataPath.Length);
                                 var newSettingsObj = ScriptableObject.CreateInstance<TextureCheckSettings>();
                                 newSettingsObj.excludeKeywords.Add("Editor");
-                                newSettingsObj.excludeKeywords.Add("Package");
+                                newSettingsObj.excludeKeywords.Add("Packages");
                                 AssetDatabase.CreateAsset(newSettingsObj, newPath);
                                 AssetDatabase.SaveAssets();
                                 EditorPrefs.SetString("TextureCheckSettingsPath", newPath);

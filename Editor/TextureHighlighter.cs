@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
 
-namespace AssetAutoCheck
+namespace TAKit.AssetAutoCheck
 {
     [InitializeOnLoad]
     public class TextureHighlighter

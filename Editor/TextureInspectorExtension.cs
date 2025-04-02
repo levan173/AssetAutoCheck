@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEditor;
 
-namespace AssetAutoCheck
+namespace TAKit.AssetAutoCheck
 {
     [InitializeOnLoad]
     public class TextureInspectorExtension

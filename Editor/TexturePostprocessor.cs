@@ -3,7 +3,7 @@ using UnityEditor;
 using System.IO;
 using System.Collections.Generic;
 
-namespace AssetAutoCheck
+namespace TAKit.AssetAutoCheck
 {
     public static class TextureImporterExtensions
     {
