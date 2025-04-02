@@ -152,5 +152,18 @@ namespace TAKit.AssetAutoCheck
         {
             return Selection.objects.Length > 0;
         }
+
+        // 添加菜单项来清除所有高亮
+        [MenuItem("Assets/清除所有贴图检查标记")]
+        private static void ClearAllHighlights()
+        {
+            if (EditorUtility.DisplayDialog("确认", "是否确定要清除所有贴图检查标记？", "确定", "取消"))
+            {
+                problemTextures.Clear();
+                problemMessages.Clear();
+                SaveProblemTextures();
+                EditorApplication.RepaintProjectWindow();
+            }
+        }
     }
 } 
