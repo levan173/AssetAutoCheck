@@ -62,6 +62,12 @@ namespace AssetAutoCheck
             var settings = TextureCheckSettings.GetOrCreateSettings();
             if (!settings.enableCheck) return (false, string.Empty);
 
+            // 检查是否在排除列表中
+            if (settings.ShouldExclude(assetPath))
+            {
+                return (false, string.Empty);
+            }
+
             // 获取源尺寸
             int width = 0, height = 0;
             textureImporter.GetSourceTextureWidthAndHeight(out width, out height);

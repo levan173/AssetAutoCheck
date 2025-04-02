@@ -114,12 +114,56 @@ namespace AssetAutoCheck
         [Tooltip("指定要检查的目录（为空则检查所有目录）")]
         public List<string> checkDirectories = new List<string>();
 
+        [Tooltip("指定要排除的目录（这些目录中的贴图将不会被检查）")]
+        public List<string> excludeDirectories = new List<string>();
+
+        [Tooltip("指定要排除的目录关键字（包含这些关键字的目录中的贴图将不会被检查）")]
+        public List<string> excludeKeywords = new List<string>();
+
+        /// <summary>
+        /// 检查指定路径是否在排除列表中
+        /// </summary>
+        /// <param name="assetPath">要检查的资源路径</param>
+        /// <returns>如果路径应该被排除返回true，否则返回false</returns>
+        public bool ShouldExclude(string assetPath)
+        {
+            // 检查是否在排除目录列表中
+            if (excludeDirectories != null && excludeDirectories.Any(dir => assetPath.StartsWith(dir, System.StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            // 检查是否包含排除关键字
+            if (excludeKeywords != null && excludeKeywords.Count > 0)
+            {
+                // 将路径分割成目录层级
+                string[] pathParts = assetPath.Split(new[] { '/', '\\' }, System.StringSplitOptions.RemoveEmptyEntries);
+                
+                // 检查每个目录名是否完全匹配任何关键字
+                foreach (string part in pathParts)
+                {
+                    if (excludeKeywords.Any(keyword => 
+                        !string.IsNullOrEmpty(keyword) && 
+                        string.Equals(part, keyword, System.StringComparison.OrdinalIgnoreCase)))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
         public static TextureCheckSettings GetOrCreateSettings()
         {
             var settings = GetSettings();
             if (settings == null)
             {
                 settings = CreateInstance<TextureCheckSettings>();
+                // 添加默认的排除关键字
+                settings.excludeKeywords.Add("Editor");
+                settings.excludeKeywords.Add("Package");
+                
                 if (!AssetDatabase.IsValidFolder("Assets/AssetAutoCheck"))
                 {
                     AssetDatabase.CreateFolder("Assets", "AssetAutoCheck");
@@ -146,8 +190,13 @@ namespace AssetAutoCheck
     static class TextureCheckSettingsIMGUIRegister
     {
         private static Vector2 directoryScrollPosition;
+        private static Vector2 excludeDirectoryScrollPosition;  // 新增：排除目录的滚动位置
+        private static Vector2 excludeKeywordScrollPosition;    // 新增：排除关键字的滚动位置
         private static Dictionary<string, bool[]> formatFoldouts = new Dictionary<string, bool[]>();
         private static TextureImporterFormat[] allFormats;
+        private static bool textureSizeFoldout = false;  // 新增：最大尺寸设置的折叠状态
+        private static bool textureFormatFoldout = false;  // 新增：压缩格式设置的折叠状态
+        private static bool excludeSettingsFoldout = false;     // 新增：排除设置的折叠状态
 
         static TextureCheckSettingsIMGUIRegister()
         {
@@ -234,6 +283,8 @@ namespace AssetAutoCheck
                             {
                                 newPath = "Assets" + newPath.Substring(Application.dataPath.Length);
                                 var newSettingsObj = ScriptableObject.CreateInstance<TextureCheckSettings>();
+                                newSettingsObj.excludeKeywords.Add("Editor");
+                                newSettingsObj.excludeKeywords.Add("Package");
                                 AssetDatabase.CreateAsset(newSettingsObj, newPath);
                                 AssetDatabase.SaveAssets();
                                 EditorPrefs.SetString("TextureCheckSettingsPath", newPath);
@@ -245,23 +296,131 @@ namespace AssetAutoCheck
                     EditorGUILayout.PropertyField(serializedSettings.FindProperty("enableCheck"), new GUIContent("启用贴图检查"));
                     
                     EditorGUILayout.Space(10);
-                    EditorGUILayout.LabelField("平台特定的贴图尺寸限制", EditorStyles.boldLabel);
                     
-                    SerializedProperty maxSizeProp = serializedSettings.FindProperty("maxTextureSize");
-                    EditorGUILayout.PropertyField(maxSizeProp.FindPropertyRelative("androidMaxSize"), new GUIContent("Android最大尺寸"));
-                    EditorGUILayout.PropertyField(maxSizeProp.FindPropertyRelative("hmiAndroidMaxSize"), new GUIContent("HMI Android最大尺寸"));
-                    EditorGUILayout.PropertyField(maxSizeProp.FindPropertyRelative("iosMaxSize"), new GUIContent("iOS最大尺寸"));
-                    EditorGUILayout.PropertyField(maxSizeProp.FindPropertyRelative("windowsMaxSize"), new GUIContent("Windows最大尺寸"));
-                    EditorGUILayout.PropertyField(maxSizeProp.FindPropertyRelative("webGLMaxSize"), new GUIContent("WebGL最大尺寸"));
+                    // 使用可折叠面板显示最大尺寸设置
+                    textureSizeFoldout = EditorGUILayout.Foldout(textureSizeFoldout, "平台特定的贴图尺寸限制", true, EditorStyles.foldoutHeader);
+                    if (textureSizeFoldout)
+                    {
+                        EditorGUI.indentLevel++;
+                        SerializedProperty maxSizeProp = serializedSettings.FindProperty("maxTextureSize");
+                        EditorGUILayout.PropertyField(maxSizeProp.FindPropertyRelative("androidMaxSize"), new GUIContent("Android最大尺寸"));
+                        EditorGUILayout.PropertyField(maxSizeProp.FindPropertyRelative("hmiAndroidMaxSize"), new GUIContent("HMI Android最大尺寸"));
+                        EditorGUILayout.PropertyField(maxSizeProp.FindPropertyRelative("iosMaxSize"), new GUIContent("iOS最大尺寸"));
+                        EditorGUILayout.PropertyField(maxSizeProp.FindPropertyRelative("windowsMaxSize"), new GUIContent("Windows最大尺寸"));
+                        EditorGUILayout.PropertyField(maxSizeProp.FindPropertyRelative("webGLMaxSize"), new GUIContent("WebGL最大尺寸"));
+                        EditorGUI.indentLevel--;
+                    }
 
                     EditorGUILayout.Space(10);
-                    EditorGUILayout.LabelField("平台特定的贴图压缩格式", EditorStyles.boldLabel);
                     
-                    DrawFormatList("Android压缩格式", settings.textureFormat.AndroidFormats, null);
-                    DrawFormatList("HMI Android压缩格式", settings.textureFormat.HMIAndroidFormats, null);
-                    DrawFormatList("iOS压缩格式", settings.textureFormat.IOSFormats, null);
-                    DrawFormatList("Windows压缩格式", settings.textureFormat.WindowsFormats, null);
-                    DrawFormatList("WebGL压缩格式", settings.textureFormat.WebGLFormats, null);
+                    // 使用可折叠面板显示压缩格式设置
+                    textureFormatFoldout = EditorGUILayout.Foldout(textureFormatFoldout, "平台特定的贴图压缩格式", true, EditorStyles.foldoutHeader);
+                    if (textureFormatFoldout)
+                    {
+                        EditorGUI.indentLevel++;
+                        DrawFormatList("Android压缩格式", settings.textureFormat.AndroidFormats, null);
+                        DrawFormatList("HMI Android压缩格式", settings.textureFormat.HMIAndroidFormats, null);
+                        DrawFormatList("iOS压缩格式", settings.textureFormat.IOSFormats, null);
+                        DrawFormatList("Windows压缩格式", settings.textureFormat.WindowsFormats, null);
+                        DrawFormatList("WebGL压缩格式", settings.textureFormat.WebGLFormats, null);
+                        EditorGUI.indentLevel--;
+                    }
+
+                    // 添加排除设置
+                    EditorGUILayout.Space(10);
+                    excludeSettingsFoldout = EditorGUILayout.Foldout(excludeSettingsFoldout, "排除目录设置", true, EditorStyles.foldoutHeader);
+                    if (excludeSettingsFoldout)
+                    {
+                        EditorGUI.indentLevel++;
+
+                        // 排除目录列表
+                        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                        EditorGUILayout.LabelField("排除的目录：");
+                        
+                        EditorGUILayout.BeginHorizontal();
+                        if (GUILayout.Button("添加排除目录", GUILayout.Width(100)))
+                        {
+                            string selectedPath = EditorUtility.OpenFolderPanel("选择要排除的目录", "Assets", "");
+                            if (!string.IsNullOrEmpty(selectedPath))
+                            {
+                                string relativePath = "Assets" + selectedPath.Substring(Application.dataPath.Length);
+                                if (!settings.excludeDirectories.Contains(relativePath))
+                                {
+                                    settings.excludeDirectories.Add(relativePath);
+                                    EditorUtility.SetDirty(settings);
+                                }
+                            }
+                        }
+                        
+                        if (GUILayout.Button("清空排除目录", GUILayout.Width(100)))
+                        {
+                            if (EditorUtility.DisplayDialog("确认", "是否确定清空所有排除目录？", "确定", "取消"))
+                            {
+                                settings.excludeDirectories.Clear();
+                                EditorUtility.SetDirty(settings);
+                            }
+                        }
+                        EditorGUILayout.EndHorizontal();
+
+                        excludeDirectoryScrollPosition = EditorGUILayout.BeginScrollView(excludeDirectoryScrollPosition, GUILayout.Height(100));
+                        for (int i = settings.excludeDirectories.Count - 1; i >= 0; i--)
+                        {
+                            EditorGUILayout.BeginHorizontal();
+                            EditorGUILayout.LabelField(settings.excludeDirectories[i]);
+                            if (GUILayout.Button("移除", GUILayout.Width(60)))
+                            {
+                                settings.excludeDirectories.RemoveAt(i);
+                                EditorUtility.SetDirty(settings);
+                            }
+                            EditorGUILayout.EndHorizontal();
+                        }
+                        EditorGUILayout.EndScrollView();
+                        EditorGUILayout.EndVertical();
+
+                        // 排除关键字列表
+                        EditorGUILayout.Space(10);
+                        EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                        EditorGUILayout.LabelField("排除的目录关键字：");
+                        
+                        EditorGUILayout.BeginHorizontal();
+                        if (GUILayout.Button("添加关键字", GUILayout.Width(100)))
+                        {
+                            settings.excludeKeywords.Add("");
+                            EditorUtility.SetDirty(settings);
+                        }
+                        
+                        if (GUILayout.Button("清空关键字", GUILayout.Width(100)))
+                        {
+                            if (EditorUtility.DisplayDialog("确认", "是否确定清空所有排除关键字？", "确定", "取消"))
+                            {
+                                settings.excludeKeywords.Clear();
+                                EditorUtility.SetDirty(settings);
+                            }
+                        }
+                        EditorGUILayout.EndHorizontal();
+
+                        excludeKeywordScrollPosition = EditorGUILayout.BeginScrollView(excludeKeywordScrollPosition, GUILayout.Height(100));
+                        for (int i = settings.excludeKeywords.Count - 1; i >= 0; i--)
+                        {
+                            EditorGUILayout.BeginHorizontal();
+                            string newKeyword = EditorGUILayout.TextField(settings.excludeKeywords[i]);
+                            if (newKeyword != settings.excludeKeywords[i])
+                            {
+                                settings.excludeKeywords[i] = newKeyword;
+                                EditorUtility.SetDirty(settings);
+                            }
+                            if (GUILayout.Button("移除", GUILayout.Width(60)))
+                            {
+                                settings.excludeKeywords.RemoveAt(i);
+                                EditorUtility.SetDirty(settings);
+                            }
+                            EditorGUILayout.EndHorizontal();
+                        }
+                        EditorGUILayout.EndScrollView();
+                        EditorGUILayout.EndVertical();
+
+                        EditorGUI.indentLevel--;
+                    }
                     
                     EditorGUILayout.Space(10);
                     EditorGUILayout.PropertyField(serializedSettings.FindProperty("maxFileSize"), new GUIContent("最大文件大小(MB)"));
@@ -319,11 +478,16 @@ namespace AssetAutoCheck
                     EditorGUILayout.EndScrollView();
                     EditorGUILayout.EndVertical();
 
+                    
                     EditorGUILayout.Space(10);
-                    if (GUILayout.Button("检查所有贴图"))
+                    EditorGUILayout.Space(5);
+                    GUI.backgroundColor = new Color(0.2f, 0.8f, 1f); // 设置按钮为亮蓝色
+                    if (GUILayout.Button("检查所有贴图", GUILayout.Height(30), GUILayout.ExpandWidth(true)))
                     {
                         CheckAllTextures();
                     }
+                    GUI.backgroundColor = Color.white; // 恢复默认颜色
+                    EditorGUILayout.Space(5);
 
                     serializedSettings.ApplyModifiedProperties();
                 },
