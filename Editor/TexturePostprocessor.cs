@@ -5,24 +5,6 @@ using System.Collections.Generic;
 
 namespace TAKit.AssetAutoCheck
 {
-    public static class TextureImporterExtensions
-    {
-        public static TextureImporterFormat GetDefaultPlatformTextureFormat(this TextureImporter importer)
-        {
-            switch (importer.textureCompression)
-            {
-                case TextureImporterCompression.Compressed:
-                    return TextureImporterFormat.Automatic;
-                case TextureImporterCompression.CompressedHQ:
-                    return TextureImporterFormat.Automatic;
-                case TextureImporterCompression.CompressedLQ:
-                    return TextureImporterFormat.Automatic;
-                default:
-                    return TextureImporterFormat.RGBA32;
-            }
-        }
-    }
-
     public class TexturePostprocessor : AssetPostprocessor
     {
         // 用于收集当前导入批次中的问题贴图
@@ -87,13 +69,7 @@ namespace TAKit.AssetAutoCheck
             else
             {
                 // 使用默认设置
-                platformSettings = new TextureImporterPlatformSettings
-                {
-                    maxTextureSize = textureImporter.maxTextureSize,
-                    format = textureImporter.textureCompression == TextureImporterCompression.Uncompressed 
-                        ? TextureImporterFormat.RGBA32 
-                        : textureImporter.GetDefaultPlatformTextureFormat()
-                };
+                platformSettings = textureImporter.GetDefaultPlatformTextureSettings();
             }
 
             int maxSize = platformSettings.maxTextureSize;
