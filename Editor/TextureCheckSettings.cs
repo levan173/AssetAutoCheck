@@ -41,9 +41,11 @@ namespace TAKit.AssetAutoCheck
         public List<TextureImporterFormat> GetCurrentPlatformFormats()
         {
             #if UNITY_ANDROID
+                if (UnityEditor.EditorUserBuildSettings.selectedBuildTargetGroup == UnityEditor.BuildTargetGroup.HMIAndroid )
+                {
+                    return hmiAndroidFormats;
+                }
                 return androidFormats;
-            #elif UNITY_HMIANDROID
-                return hmiAndroidFormats;
             #elif UNITY_IOS
                 return iosFormats;
             #elif UNITY_WEBGL
@@ -78,9 +80,11 @@ namespace TAKit.AssetAutoCheck
         public int GetCurrentPlatformSize()
         {
             #if UNITY_ANDROID
+                if (UnityEditor.EditorUserBuildSettings.selectedBuildTargetGroup == UnityEditor.BuildTargetGroup.HMIAndroid)
+                {
+                    return hmiAndroidMaxSize;
+                }
                 return androidMaxSize;
-            #elif UNITY_HMIANDROID
-                return hmiAndroidMaxSize;
             #elif UNITY_IOS
                 return iosMaxSize;
             #elif UNITY_WEBGL
