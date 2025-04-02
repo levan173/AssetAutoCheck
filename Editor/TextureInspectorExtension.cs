@@ -14,6 +14,9 @@ namespace TAKit.AssetAutoCheck
 
         private static void OnPostHeaderGUI(Editor editor)
         {
+            var settings = TextureCheckSettings.GetOrCreateSettings();
+            if (!settings.enableCheck) return;
+
             if (editor.target is Texture2D || editor.target is TextureImporter)
             {
                 string assetPath = AssetDatabase.GetAssetPath(editor.target);
