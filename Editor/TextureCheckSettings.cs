@@ -98,6 +98,53 @@ namespace TAKit.AssetAutoCheck
     public class TextureCheckSettings : ScriptableObject
     {
         private const string DEFAULT_SETTINGS_PATH = "Assets/TextureCheckSettings.asset";
+        
+        private static TextureCheckSettings instance;
+        public static TextureCheckSettings Instance
+        {
+            get
+            {
+                if (instance == null)
+                {
+                    instance = AssetDatabase.LoadAssetAtPath<TextureCheckSettings>(DEFAULT_SETTINGS_PATH);
+                    if (instance == null)
+                    {
+                        instance = CreateInstance<TextureCheckSettings>();
+                        // 添加默认的排除关键字
+                        instance.excludeKeywords.Add("Editor");
+                        instance.excludeKeywords.Add("Packages");
+                        
+                        // 确保设置文件所在的目录存在
+                        string settingsFolder = Path.GetDirectoryName(DEFAULT_SETTINGS_PATH);
+                        if (!string.IsNullOrEmpty(settingsFolder) && !AssetDatabase.IsValidFolder(settingsFolder))
+                        {
+                            // 从Assets开始，逐级创建目录
+                            string[] folderLevels = settingsFolder.Split('/');
+                            string currentPath = folderLevels[0]; // 应该是"Assets"
+                            
+                            // 从第二级目录开始创建
+                            for (int i = 1; i < folderLevels.Length; i++)
+                            {
+                                string newPath = Path.Combine(currentPath, folderLevels[i]);
+                                if (!AssetDatabase.IsValidFolder(newPath))
+                                {
+                                    AssetDatabase.CreateFolder(currentPath, folderLevels[i]);
+                                }
+                                currentPath = newPath;
+                            }
+                        }
+                        
+                        AssetDatabase.CreateAsset(instance, DEFAULT_SETTINGS_PATH);
+                        AssetDatabase.SaveAssets();
+                    }
+                }
+                return instance;
+            }
+            set
+            {
+                instance = value;
+            }
+        }
 
         [Tooltip("是否启用贴图检查")]
         public bool enableCheck = true;
@@ -160,45 +207,7 @@ namespace TAKit.AssetAutoCheck
 
         public static TextureCheckSettings GetOrCreateSettings()
         {
-            var settings = GetSettings();
-            if (settings == null)
-            {
-                settings = CreateInstance<TextureCheckSettings>();
-                // 添加默认的排除关键字
-                settings.excludeKeywords.Add("Editor");
-                settings.excludeKeywords.Add("Packages");
-                
-                // 确保设置文件所在的目录存在
-                string settingsFolder = Path.GetDirectoryName(DEFAULT_SETTINGS_PATH);
-                if (!string.IsNullOrEmpty(settingsFolder) && !AssetDatabase.IsValidFolder(settingsFolder))
-                {
-                    // 从Assets开始，逐级创建目录
-                    string[] folderLevels = settingsFolder.Split('/');
-                    string currentPath = folderLevels[0]; // 应该是"Assets"
-                    
-                    // 从第二级目录开始创建
-                    for (int i = 1; i < folderLevels.Length; i++)
-                    {
-                        string newPath = Path.Combine(currentPath, folderLevels[i]);
-                        if (!AssetDatabase.IsValidFolder(newPath))
-                        {
-                            AssetDatabase.CreateFolder(currentPath, folderLevels[i]);
-                        }
-                        currentPath = newPath;
-                    }
-                }
-                
-                AssetDatabase.CreateAsset(settings, DEFAULT_SETTINGS_PATH);
-                AssetDatabase.SaveAssets();
-                EditorPrefs.SetString("TextureCheckSettingsPath", DEFAULT_SETTINGS_PATH);
-            }
-            return settings;
-        }
-
-        private static TextureCheckSettings GetSettings()
-        {
-            string path = EditorPrefs.GetString("TextureCheckSettingsPath", DEFAULT_SETTINGS_PATH);
-            return AssetDatabase.LoadAssetAtPath<TextureCheckSettings>(path);
+            return Instance;
         }
 
         public static SerializedObject GetSerializedSettings()
@@ -287,13 +296,12 @@ namespace TAKit.AssetAutoCheck
 
                     using (new EditorGUILayout.HorizontalScope())
                     {
-                        var currentSettings = AssetDatabase.LoadAssetAtPath<TextureCheckSettings>(EditorPrefs.GetString("TextureCheckSettingsPath", ""));
+                        var currentSettings = TextureCheckSettings.Instance;
                         var newSettings = EditorGUILayout.ObjectField("当前设置文件", currentSettings, typeof(TextureCheckSettings), false) as TextureCheckSettings;
                         
                         if (newSettings != currentSettings && newSettings != null)
                         {
-                            string newPath = AssetDatabase.GetAssetPath(newSettings);
-                            EditorPrefs.SetString("TextureCheckSettingsPath", newPath);
+                            TextureCheckSettings.Instance = newSettings;
                         }
                         
                         if (GUILayout.Button("创建新设置", GUILayout.Width(100)))
@@ -307,7 +315,7 @@ namespace TAKit.AssetAutoCheck
                                 newSettingsObj.excludeKeywords.Add("Packages");
                                 AssetDatabase.CreateAsset(newSettingsObj, newPath);
                                 AssetDatabase.SaveAssets();
-                                EditorPrefs.SetString("TextureCheckSettingsPath", newPath);
+                                TextureCheckSettings.Instance = newSettingsObj;
                             }
                         }
                     }
