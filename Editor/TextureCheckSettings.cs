@@ -111,6 +111,22 @@ namespace TAKit.AssetAutoCheck
                     instance = AssetDatabase.LoadAssetAtPath<TextureCheckSettings>(path);
                     if (instance == null)
                     {
+                        // 在创建新实例之前，先搜索Assets文件夹下是否存在其他的settings
+                        string[] guids = AssetDatabase.FindAssets("t:TextureCheckSettings", new[] { "Assets" });
+                        if (guids.Length > 0)
+                        {
+                            // 使用找到的第一个settings
+                            string existingPath = AssetDatabase.GUIDToAssetPath(guids[0]);
+                            instance = AssetDatabase.LoadAssetAtPath<TextureCheckSettings>(existingPath);
+                            if (instance != null)
+                            {
+                                // 更新设置路径
+                                EditorPrefs.SetString(SETTINGS_PATH_PREF_KEY, existingPath);
+                                return instance;
+                            }
+                        }
+
+                        // 如果没有找到现有的settings，则创建新的
                         instance = CreateInstance<TextureCheckSettings>();
                         // 添加默认的排除关键字
                         instance.excludeKeywords.Add("Editor");
