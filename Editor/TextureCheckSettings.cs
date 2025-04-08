@@ -137,7 +137,7 @@ namespace TAKit.AssetAutoCheck
                         if (!string.IsNullOrEmpty(settingsFolder) && !AssetDatabase.IsValidFolder(settingsFolder))
                         {
                             // 从Assets开始，逐级创建目录
-                            string[] folderLevels = settingsFolder.Split('/');
+                            string[] folderLevels = settingsFolder.Split(new []{'\\','/'});
                             string currentPath = folderLevels[0]; // 应该是"Assets"
                             
                             // 从第二级目录开始创建
