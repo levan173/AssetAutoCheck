@@ -10,26 +10,65 @@ namespace TAKit.AssetAutoCheck
         // 用于收集当前导入批次中的问题贴图
         private static Dictionary<string, string> currentBatchIssues = new Dictionary<string, string>();
 
-        void OnPostprocessTexture(Texture2D texture)
+        // 在所有资源处理完成后调用
+        static void OnPostprocessAllAssets(
+            string[] importedAssets,
+            string[] deletedAssets,
+            string[] movedAssets,
+            string[] movedFromAssetPaths)
         {
-            if (assetImporter is TextureImporter textureImporter)
+            // 处理导入的资产
+            if (importedAssets != null && importedAssets.Length > 0)
             {
-                var (hasIssue, message) = CheckTextureImporter(textureImporter, assetPath);
-                
-                if (hasIssue)
+                foreach (string assetPath in importedAssets)
                 {
-                    // 将问题贴图添加到当前批次
-                    lock (currentBatchIssues)
+                    // 检查是否为贴图资源
+                    if (AssetImporter.GetAtPath(assetPath) is TextureImporter textureImporter)
                     {
-                        currentBatchIssues[assetPath] = message;
+                        var (hasIssue, message) = CheckTextureImporter(textureImporter, assetPath);
+                        
+                        if (hasIssue)
+                        {
+                            // 将问题贴图添加到当前批次
+                            currentBatchIssues[assetPath] = message;
+                            TextureHighlighter.MarkTexture(assetPath, message);
+                        }
+                        else
+                        {
+                            // 如果贴图现在满足要求，移除高亮标记
+                            TextureHighlighter.RemoveTexture(assetPath);
+                        }
                     }
-                    TextureHighlighter.MarkTexture(assetPath, message);
                 }
-                else
+            }
+
+            // 处理删除的资产
+            if (deletedAssets != null && deletedAssets.Length > 0)
+            {
+                foreach (string deletedAsset in deletedAssets)
                 {
-                    // 如果贴图现在满足要求，移除高亮标记
-                    TextureHighlighter.RemoveTexture(assetPath);
+                    TextureHighlighter.RemoveTexture(deletedAsset);
                 }
+            }
+
+            // 处理移动的资产
+            if (movedAssets != null && movedAssets.Length > 0)
+            {
+                for (int i = 0; i < movedAssets.Length; i++)
+                {
+                    TextureHighlighter.UpdateTexturePath(movedFromAssetPaths[i], movedAssets[i]);
+                }
+            }
+
+            if (currentBatchIssues.Count > 0)
+            {
+                var settings = TextureCheckSettings.GetOrCreateSettings();
+                // 只在启用检查时显示窗口
+                if (settings.enableCheck)
+                {
+                    TextureCheckWindow.ShowWindow("问题贴图检查", currentBatchIssues);
+                }
+                currentBatchIssues.Clear();
             }
         }
 
@@ -137,43 +176,6 @@ namespace TAKit.AssetAutoCheck
             }
 
             return (hasIssue, message);
-        }
-
-        // 在所有资源处理完成后调用
-        static void OnPostprocessAllAssets(
-            string[] importedAssets,
-            string[] deletedAssets,
-            string[] movedAssets,
-            string[] movedFromAssetPaths)
-        {
-            // 处理删除的资产
-            if (deletedAssets != null && deletedAssets.Length > 0)
-            {
-                foreach (string deletedAsset in deletedAssets)
-                {
-                    TextureHighlighter.RemoveTexture(deletedAsset);
-                }
-            }
-
-            // 处理移动的资产
-            if (movedAssets != null && movedAssets.Length > 0)
-            {
-                for (int i = 0; i < movedAssets.Length; i++)
-                {
-                    TextureHighlighter.UpdateTexturePath(movedFromAssetPaths[i], movedAssets[i]);
-                }
-            }
-
-            if (currentBatchIssues.Count > 0)
-            {
-                var settings = TextureCheckSettings.GetOrCreateSettings();
-                // 只在启用检查时显示窗口
-                if (settings.enableCheck)
-                {
-                    TextureCheckWindow.ShowWindow("问题贴图检查", currentBatchIssues);
-                }
-                currentBatchIssues.Clear();
-            }
         }
     }
 } 
