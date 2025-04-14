@@ -569,6 +569,8 @@ namespace TAKit.AssetAutoCheck
                 searchPaths.Add("Assets"); // 如果没有指定目录，则检查所有Assets下的贴图
             }
 
+            TextureHighlighter.ClearAllHighlightsWithOutCheck();
+
             // 在每个指定的目录中搜索贴图
             HashSet<string> processedGuids = new HashSet<string>(); // 用于去重
             foreach (string searchPath in searchPaths)

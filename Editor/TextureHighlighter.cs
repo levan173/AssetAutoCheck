@@ -183,6 +183,15 @@ namespace TAKit.AssetAutoCheck
             }
         }
 
+        public static void ClearAllHighlightsWithOutCheck()
+        {
+            needsRecalculate = true;
+            problemTextures.Clear();
+            problemMessages.Clear();
+            SaveProblemTextures();
+            EditorApplication.RepaintProjectWindow();
+        }
+
         // 添加菜单项来清除高亮
         [MenuItem("Assets/清除贴图检查标记")]
         private static void ClearHighlight()
