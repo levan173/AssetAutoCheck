@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
+using System.IO;
 
 namespace TAKit.AssetAutoCheck
 {
@@ -11,6 +12,9 @@ namespace TAKit.AssetAutoCheck
         private static readonly string ProblemMessagesKey = "AssetAutoCheck_ProblemMessages";
         private static HashSet<string> problemTextures = new HashSet<string>();
         private static Dictionary<string, string> problemMessages = new Dictionary<string, string>();
+        private static Dictionary<string, int> folderProblemCounts = new Dictionary<string, int>();
+        private static bool needsRecalculate = true;
+        private static GUIStyle countStyle;
 
         static TextureHighlighter()
         {
@@ -18,11 +22,24 @@ namespace TAKit.AssetAutoCheck
             EditorApplication.projectWindowItemOnGUI += OnProjectWindowItemGUI;
         }
 
+        private static GUIStyle GetCountStyle()
+        {
+            if (countStyle == null)
+            {
+                countStyle = new GUIStyle(EditorStyles.boldLabel);
+                countStyle.alignment = TextAnchor.MiddleRight;
+                countStyle.margin = new RectOffset(0, 0, 0, 0); // 右侧margin为12像素
+                countStyle.padding = new RectOffset(0, 12, 0, 0);
+            }
+            return countStyle;
+        }
+
         public static void MarkTexture(string path, string message)
         {
             problemTextures.Add(path);
             problemMessages[path] = message;
             SaveProblemTextures();
+            needsRecalculate = true;
         }
 
         public static void RemoveTexture(string path)
@@ -31,6 +48,7 @@ namespace TAKit.AssetAutoCheck
             {
                 problemMessages.Remove(path);
                 SaveProblemTextures();
+                needsRecalculate = true;
             }
         }
 
@@ -45,6 +63,7 @@ namespace TAKit.AssetAutoCheck
                     problemMessages[newPath] = message;
                 }
                 SaveProblemTextures();
+                needsRecalculate = true;
             }
         }
 
@@ -100,6 +119,26 @@ namespace TAKit.AssetAutoCheck
             EditorPrefs.SetString(ProblemMessagesKey, messagesData);
         }
 
+        private static void RecalculateFolderCounts()
+        {
+            folderProblemCounts.Clear();
+            foreach (string texturePath in problemTextures)
+            {
+                string directory = Path.GetDirectoryName(texturePath);
+                while (!string.IsNullOrEmpty(directory))
+                {
+                    directory = directory.Replace("\\", "/");
+                    if (!folderProblemCounts.ContainsKey(directory))
+                    {
+                        folderProblemCounts[directory] = 0;
+                    }
+                    folderProblemCounts[directory]++;
+                    directory = Path.GetDirectoryName(directory);
+                }
+            }
+            needsRecalculate = false;
+        }
+
         private static void OnProjectWindowItemGUI(string guid, Rect selectionRect)
         {
             // 如果检查被禁用，不显示标记
@@ -109,8 +148,29 @@ namespace TAKit.AssetAutoCheck
                 return;
             }
 
+            if (needsRecalculate)
+            {
+                RecalculateFolderCounts();
+            }
+
             string path = AssetDatabase.GUIDToAssetPath(guid);
-            if (problemTextures.Contains(path))
+            
+            // 处理文件夹
+            if (AssetDatabase.IsValidFolder(path))
+            {
+                if (folderProblemCounts.TryGetValue(path, out int count) && count > 0)
+                {
+                    // 在文件夹名称后显示计数
+                    GUIContent countContent = new GUIContent($"({count})");
+                    
+                    Color originalColor = GUI.color;
+                    GUI.color = new Color(1f, 0.5f, 0.5f, 1f);
+                    GUI.Label(selectionRect, countContent, GetCountStyle());
+                    GUI.color = originalColor;
+                }
+            }
+            // 处理问题贴图
+            else if (problemTextures.Contains(path))
             {
                 Color originalColor = GUI.color;
                 GUI.color = new Color(1f, 0.5f, 0.5f, 0.3f);
@@ -142,6 +202,7 @@ namespace TAKit.AssetAutoCheck
 
             if (changed)
             {
+                needsRecalculate = true;
                 SaveProblemTextures();
                 EditorApplication.RepaintProjectWindow();
             }
@@ -159,6 +220,7 @@ namespace TAKit.AssetAutoCheck
         {
             if (EditorUtility.DisplayDialog("确认", "是否确定要清除所有贴图检查标记？", "确定", "取消"))
             {
+                needsRecalculate = true;
                 problemTextures.Clear();
                 problemMessages.Clear();
                 SaveProblemTextures();
